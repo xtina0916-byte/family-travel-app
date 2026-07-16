@@ -1,0 +1,19 @@
+{
+  "name": "家庭旅遊行程助手",
+  "short_name": "旅遊行程",
+  "description": "全家出國旅遊用的每日行程、地圖與攜帶物品清單小工具",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f4f7fa",
+  "theme_color": "#2f6690",
+  "lang": "zh-TW",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

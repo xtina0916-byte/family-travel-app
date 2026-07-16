@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2f6690">
+<title>家庭旅遊行程</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon.svg">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app">
+
+  <header class="topbar">
+    <div class="brand">✈️ 家庭旅遊行程</div>
+    <button id="homeBtn" class="icon-btn" title="回首頁">🏠</button>
+  </header>
+
+  <!-- 首頁：行程列表 -->
+  <main id="homeView" class="view">
+    <div class="home-toolbar">
+      <button id="newTripBtn" class="primary-btn">＋ 新增行程</button>
+      <button id="importBtn" class="ghost-btn">匯入行程檔</button>
+      <input type="file" id="importFile" hidden accept=".json">
+    </div>
+    <div id="tripList" class="trip-list"></div>
+    <p id="emptyHint" class="empty-hint hidden">還沒有任何行程，點上面「＋ 新增行程」開始規劃吧！</p>
+  </main>
+
+  <!-- 行程詳細頁 -->
+  <main id="tripView" class="view hidden">
+    <div class="trip-header">
+      <div class="trip-header-row">
+        <button id="backBtn" class="icon-btn" title="返回">←</button>
+        <div>
+          <h2 id="tripTitle"></h2>
+          <div id="tripDates" class="trip-dates"></div>
+        </div>
+      </div>
+      <div class="trip-actions">
+        <button id="exportBtn" class="ghost-btn small">匯出</button>
+        <button id="editTripBtn" class="ghost-btn small">編輯行程資訊</button>
+        <button id="deleteTripBtn" class="danger-btn small">刪除</button>
+      </div>
+    </div>
+
+    <nav class="tabs">
+      <button data-tab="itinerary" class="tab active">📅 每日行程</button>
+      <button data-tab="map" class="tab">🗺️ 地圖</button>
+      <button data-tab="packing" class="tab">🎒 攜帶物品</button>
+    </nav>
+
+    <section id="itineraryTab" class="tabpanel">
+      <div id="dayPills" class="day-pills"></div>
+      <div id="dayItems" class="day-items"></div>
+      <button id="addActivityBtn" class="primary-btn full">＋ 新增行程項目</button>
+    </section>
+
+    <section id="mapTab" class="tabpanel hidden">
+      <div id="mapDayPills" class="day-pills"></div>
+      <button id="openRouteBtn" class="primary-btn full">🧭 用 Google 地圖開啟本日路線</button>
+      <div id="mapList" class="map-list"></div>
+    </section>
+
+    <section id="packingTab" class="tabpanel hidden">
+      <div class="packing-toolbar">
+        <button id="loadTemplateBtn" class="ghost-btn small">套用預設清單</button>
+        <button id="resetCheckBtn" class="ghost-btn small">全部取消勾選</button>
+        <button id="addCategoryBtn" class="ghost-btn small">＋ 新增分類</button>
+      </div>
+      <div id="packingList" class="packing-list"></div>
+    </section>
+  </main>
+
+</div>
+
+<!-- 通用 Modal -->
+<div id="modalOverlay" class="modal-overlay hidden">
+  <div class="modal">
+    <h3 id="modalTitle"></h3>
+    <form id="modalForm"></form>
+    <div class="modal-actions">
+      <button type="button" id="modalCancel" class="ghost-btn">取消</button>
+      <button type="submit" form="modalForm" class="primary-btn">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
