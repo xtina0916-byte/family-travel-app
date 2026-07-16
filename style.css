@@ -47,6 +47,22 @@ body {
   font-weight: 700;
 }
 
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sync-status {
+  font-size: 11px;
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.15);
+  border-radius: 999px;
+  padding: 4px 10px;
+  white-space: nowrap;
+}
+.sync-status.offline { background: rgba(181,83,63,0.5); }
+.sync-status.synced { background: rgba(95,154,160,0.35); }
+
 .icon-btn {
   background: transparent;
   border: none;

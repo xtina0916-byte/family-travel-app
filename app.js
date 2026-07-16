@@ -18,6 +18,7 @@ function normalizeTrip(trip) {
 }
 function saveTrips() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trips));
+  pushTripsToFirestore();
 }
 function uid() {
   return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
@@ -805,8 +806,91 @@ function escapeHtml(str) {
   }[c]));
 }
 
+// ---------- Firebase 雲端同步 ----------
+const FIRESTORE_COLLECTION = "familyTravelApp";
+const FIRESTORE_DOC = "sharedData";
+let firebaseReady = false;
+let applyingRemoteUpdate = false;
+
+function setSyncStatus(text, cls) {
+  const el = document.getElementById("syncStatus");
+  if (!el) return;
+  el.textContent = text;
+  el.className = "sync-status" + (cls ? ` ${cls}` : "");
+}
+
+function refreshCurrentView() {
+  if (!state.currentTripId) {
+    renderTripList();
+    return;
+  }
+  const trip = currentTrip();
+  if (!trip) {
+    showHome();
+    return;
+  }
+  renderTrip();
+  if (state.activeTab === "map") renderMapTab();
+  if (state.activeTab === "packing") renderPackingTab();
+  if (state.activeTab === "expense") renderExpenseTab();
+}
+
+function pushTripsToFirestore() {
+  if (!firebaseReady || applyingRemoteUpdate) return;
+  firebase.firestore().collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC)
+    .set({ trips: state.trips, updatedAt: Date.now() })
+    .catch(err => console.error("雲端同步寫入失敗", err));
+}
+
+function initFirebaseSync() {
+  if (typeof firebase === "undefined" || typeof firebaseConfig === "undefined") {
+    setSyncStatus("僅本機儲存", "offline");
+    return;
+  }
+  firebase.initializeApp(firebaseConfig);
+  setSyncStatus("連線中…");
+
+  firebase.auth().onAuthStateChanged(user => {
+    if (!user) return;
+    const docRef = firebase.firestore().collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC);
+    docRef.get()
+      .then(snap => {
+        if (!snap.exists) {
+          return docRef.set({ trips: state.trips, updatedAt: Date.now() });
+        }
+      })
+      .catch(err => console.error("雲端同步初始化失敗", err))
+      .finally(() => {
+        firebaseReady = true;
+        docRef.onSnapshot(
+          snap => {
+            if (!snap.exists) return;
+            const data = snap.data();
+            const incoming = (data.trips || []).map(normalizeTrip);
+            applyingRemoteUpdate = true;
+            state.trips = incoming;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trips));
+            refreshCurrentView();
+            applyingRemoteUpdate = false;
+            setSyncStatus("已同步", "synced");
+          },
+          err => {
+            console.error("雲端同步監聽失敗", err);
+            setSyncStatus("離線（僅本機）", "offline");
+          }
+        );
+      });
+  });
+
+  firebase.auth().signInAnonymously().catch(err => {
+    console.error("雲端登入失敗", err);
+    setSyncStatus("離線（僅本機）", "offline");
+  });
+}
+
 // ---------- 啟動 ----------
 showHome();
+initFirebaseSync();
 
 // ---------- Service Worker (PWA 離線支援) ----------
 if ("serviceWorker" in navigator) {

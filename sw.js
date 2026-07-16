@@ -1,9 +1,10 @@
-const CACHE_NAME = "travel-app-cache-v3";
+const CACHE_NAME = "travel-app-cache-v4";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./firebase-config.js",
   "./manifest.json",
   "./icon.svg",
 ];
