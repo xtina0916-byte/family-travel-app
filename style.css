@@ -418,6 +418,72 @@ body {
 }
 .settle-row strong { margin-left: auto; color: var(--primary-dark); }
 
+/* ---------- 意見投票 ---------- */
+.poll-hint { font-size: 12px; color: var(--muted); margin: 0 0 12px; line-height: 1.5; }
+.poll-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 12px; }
+.poll-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+}
+.poll-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.poll-question { font-weight: 700; font-size: 15px; }
+.poll-card-header button {
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  font-size: 15px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.poll-option-row { margin-bottom: 10px; }
+.poll-option-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+.poll-option-label .name { font-weight: 600; }
+.poll-option-label .name.mine::after { content: " ✓ 你的選擇"; color: var(--accent); font-weight: 600; }
+.poll-option-bar-track {
+  background: var(--border);
+  border-radius: 999px;
+  height: 10px;
+  overflow: hidden;
+}
+.poll-option-bar-fill { background: var(--accent); height: 100%; border-radius: 999px; }
+.poll-total { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+.poll-vote-form { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; border-top: 1px dashed var(--border); padding-top: 12px; }
+.poll-vote-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+.poll-vote-option input { width: 16px; height: 16px; }
+.poll-vote-actions { display: flex; justify-content: flex-end; margin-top: 4px; }
+.poll-vote-actions button {
+  border: none;
+  background: var(--primary);
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 16px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #201a14;

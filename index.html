@@ -54,6 +54,7 @@
       <button data-tab="map" class="tab">🗺️ 地圖</button>
       <button data-tab="packing" class="tab">🎒 攜帶物品</button>
       <button data-tab="expense" class="tab">💰 旅費分攤</button>
+      <button data-tab="poll" class="tab">🗳️ 意見投票</button>
     </nav>
 
     <section id="itineraryTab" class="tabpanel">
@@ -100,6 +101,12 @@
         </div>
         <div id="settlementSummary" class="settlement-summary"></div>
       </div>
+    </section>
+
+    <section id="pollTab" class="tabpanel hidden">
+      <p class="poll-hint">投票採匿名方式，只會顯示各選項的票數，不會顯示是誰投的。每人（每個裝置）限投一票，可隨時更改自己的選擇。</p>
+      <div id="pollList" class="poll-list"></div>
+      <button id="addPollBtn" class="primary-btn full">＋ 發起新投票</button>
     </section>
   </main>
 

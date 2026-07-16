@@ -14,6 +14,7 @@ function normalizeTrip(trip) {
   trip.members = trip.members || [];
   trip.expenses = trip.expenses || [];
   trip.currency = trip.currency || "NT$";
+  trip.polls = trip.polls || [];
   return trip;
 }
 function saveTrips() {
@@ -110,9 +111,11 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.getElementById("mapTab").classList.toggle("hidden", state.activeTab !== "map");
     document.getElementById("packingTab").classList.toggle("hidden", state.activeTab !== "packing");
     document.getElementById("expenseTab").classList.toggle("hidden", state.activeTab !== "expense");
+    document.getElementById("pollTab").classList.toggle("hidden", state.activeTab !== "poll");
     if (state.activeTab === "map") renderMapTab();
     if (state.activeTab === "packing") renderPackingTab();
     if (state.activeTab === "expense") renderExpenseTab();
+    if (state.activeTab === "poll") renderPollTab();
   });
 });
 
@@ -714,6 +717,141 @@ function renderSettlement() {
   summaryEl.appendChild(settleEl);
 }
 
+// ---------- 意見投票 ----------
+function currentVoterId() {
+  return (typeof firebase !== "undefined" && firebase.auth().currentUser && firebase.auth().currentUser.uid) || null;
+}
+
+function renderPollTab() {
+  const trip = currentTrip();
+  const pollList = document.getElementById("pollList");
+  pollList.innerHTML = "";
+  if (!trip.polls.length) {
+    pollList.innerHTML = `<div class="empty-day">還沒有投票，點下方「發起新投票」讓大家表達意見吧！</div>`;
+    return;
+  }
+  const myId = currentVoterId();
+  trip.polls
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .forEach(poll => {
+      const votes = poll.votes || {};
+      const counts = {};
+      poll.options.forEach(o => { counts[o.id] = 0; });
+      Object.values(votes).forEach(optId => {
+        if (counts[optId] !== undefined) counts[optId]++;
+      });
+      const total = Object.values(counts).reduce((s, n) => s + n, 0);
+      const myVote = myId ? votes[myId] : undefined;
+
+      const card = document.createElement("div");
+      card.className = "poll-card";
+      card.innerHTML = `
+        <div class="poll-card-header">
+          <div class="poll-question">${escapeHtml(poll.question)}</div>
+          <button class="del-poll" title="刪除投票">🗑️</button>
+        </div>
+        <div class="poll-results"></div>
+        <div class="poll-total">共 ${total} 票</div>
+      `;
+      const resultsEl = card.querySelector(".poll-results");
+      poll.options.forEach(opt => {
+        const count = counts[opt.id] || 0;
+        const pct = total ? Math.round((count / total) * 100) : 0;
+        const row = document.createElement("div");
+        row.className = "poll-option-row";
+        row.innerHTML = `
+          <div class="poll-option-label">
+            <span class="name${opt.id === myVote ? " mine" : ""}">${escapeHtml(opt.text)}</span>
+            <span>${count} 票・${pct}%</span>
+          </div>
+          <div class="poll-option-bar-track"><div class="poll-option-bar-fill" style="width:${pct}%"></div></div>
+        `;
+        resultsEl.appendChild(row);
+      });
+
+      const form = document.createElement("div");
+      form.className = "poll-vote-form";
+      poll.options.forEach(opt => {
+        const label = document.createElement("label");
+        label.className = "poll-vote-option";
+        label.innerHTML = `<input type="radio" name="vote_${poll.id}" value="${opt.id}" ${opt.id === myVote ? "checked" : ""}><span>${escapeHtml(opt.text)}</span>`;
+        form.appendChild(label);
+      });
+      const actions = document.createElement("div");
+      actions.className = "poll-vote-actions";
+      actions.innerHTML = `<button type="button">${myVote !== undefined ? "更改我的投票" : "送出投票"}</button>`;
+      actions.querySelector("button").addEventListener("click", () => {
+        const checked = form.querySelector(`input[name="vote_${poll.id}"]:checked`);
+        if (!checked) { alert("請先選擇一個選項"); return; }
+        castVote(trip.id, poll.id, checked.value);
+      });
+      form.appendChild(actions);
+      card.appendChild(form);
+
+      card.querySelector(".del-poll").addEventListener("click", () => {
+        if (!confirm("確定要刪除這個投票嗎？")) return;
+        trip.polls = trip.polls.filter(p => p.id !== poll.id);
+        saveTrips();
+        renderPollTab();
+      });
+
+      pollList.appendChild(card);
+    });
+}
+
+document.getElementById("addPollBtn").addEventListener("click", () => {
+  openModal("發起新投票", [
+    { name: "question", label: "問題", type: "text", required: true, placeholder: "例：晚餐想吃什麼？" },
+    { name: "options", label: "選項（每行一個，至少 2 個）", type: "textarea", required: true, placeholder: "火鍋\n燒肉\n拉麵" },
+  ], (values) => {
+    const optionTexts = values.options.split("\n").map(s => s.trim()).filter(Boolean);
+    if (optionTexts.length < 2) { alert("請至少輸入 2 個選項"); return; }
+    const trip = currentTrip();
+    trip.polls.push({
+      id: uid(),
+      question: values.question,
+      options: optionTexts.map(text => ({ id: uid(), text })),
+      votes: {},
+      createdAt: Date.now(),
+    });
+    saveTrips();
+    renderPollTab();
+  });
+});
+
+function castVote(tripId, pollId, optionId) {
+  const voterId = currentVoterId();
+  if (!voterId) {
+    alert("尚未連上雲端，請稍後再試一次投票");
+    return;
+  }
+  if (!firebaseReady) {
+    const trip = state.trips.find(t => t.id === tripId);
+    const poll = trip.polls.find(p => p.id === pollId);
+    poll.votes[voterId] = optionId;
+    saveTrips();
+    renderPollTab();
+    return;
+  }
+  const docRef = firebase.firestore().collection(FIRESTORE_COLLECTION).doc(FIRESTORE_DOC);
+  firebase.firestore().runTransaction(tx =>
+    tx.get(docRef).then(snap => {
+      const data = snap.data() || {};
+      const trips = (data.trips || []).map(normalizeTrip);
+      const trip = trips.find(t => t.id === tripId);
+      if (!trip) return;
+      const poll = trip.polls.find(p => p.id === pollId);
+      if (!poll) return;
+      poll.votes[voterId] = optionId;
+      tx.set(docRef, { trips, updatedAt: Date.now() });
+    })
+  ).catch(err => {
+    console.error("投票失敗", err);
+    alert("投票失敗，請檢查網路連線後再試一次");
+  });
+}
+
 // ---------- 共用 Modal ----------
 const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
@@ -833,6 +971,7 @@ function refreshCurrentView() {
   if (state.activeTab === "map") renderMapTab();
   if (state.activeTab === "packing") renderPackingTab();
   if (state.activeTab === "expense") renderExpenseTab();
+  if (state.activeTab === "poll") renderPollTab();
 }
 
 function pushTripsToFirestore() {
