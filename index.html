@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#2f6690">
-<title>家庭旅遊行程</title>
+<meta name="theme-color" content="#7a6248">
+<title>珍貴回憶之旅</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon.svg">
@@ -14,7 +14,7 @@
 <div id="app">
 
   <header class="topbar">
-    <div class="brand">✈️ 家庭旅遊行程</div>
+    <div class="brand">🧳 珍貴回憶之旅</div>
     <button id="homeBtn" class="icon-btn" title="回首頁">🏠</button>
   </header>
 
@@ -50,6 +50,7 @@
       <button data-tab="itinerary" class="tab active">📅 每日行程</button>
       <button data-tab="map" class="tab">🗺️ 地圖</button>
       <button data-tab="packing" class="tab">🎒 攜帶物品</button>
+      <button data-tab="expense" class="tab">💰 旅費分攤</button>
     </nav>
 
     <section id="itineraryTab" class="tabpanel">
@@ -71,6 +72,31 @@
         <button id="addCategoryBtn" class="ghost-btn small">＋ 新增分類</button>
       </div>
       <div id="packingList" class="packing-list"></div>
+    </section>
+
+    <section id="expenseTab" class="tabpanel hidden">
+      <div class="expense-section">
+        <div class="section-header">
+          <h4>成員</h4>
+          <button id="addMemberBtn" class="ghost-btn small">＋ 新增成員</button>
+        </div>
+        <div id="memberChips" class="member-chips"></div>
+      </div>
+
+      <div class="expense-section">
+        <div class="section-header">
+          <h4>支出紀錄</h4>
+        </div>
+        <div id="expenseList" class="expense-list"></div>
+        <button id="addExpenseBtn" class="primary-btn full">＋ 新增支出</button>
+      </div>
+
+      <div class="expense-section">
+        <div class="section-header">
+          <h4>結算</h4>
+        </div>
+        <div id="settlementSummary" class="settlement-summary"></div>
+      </div>
     </section>
   </main>
 

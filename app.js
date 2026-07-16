@@ -3,10 +3,18 @@ const STORAGE_KEY = "familyTravelApp.trips.v1";
 
 function loadTrips() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    const trips = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    return trips.map(normalizeTrip);
   } catch {
     return [];
   }
+}
+function normalizeTrip(trip) {
+  trip.packing = trip.packing || [];
+  trip.members = trip.members || [];
+  trip.expenses = trip.expenses || [];
+  trip.currency = trip.currency || "NT$";
+  return trip;
 }
 function saveTrips() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state.trips));
@@ -100,8 +108,10 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.getElementById("itineraryTab").classList.toggle("hidden", state.activeTab !== "itinerary");
     document.getElementById("mapTab").classList.toggle("hidden", state.activeTab !== "map");
     document.getElementById("packingTab").classList.toggle("hidden", state.activeTab !== "packing");
+    document.getElementById("expenseTab").classList.toggle("hidden", state.activeTab !== "expense");
     if (state.activeTab === "map") renderMapTab();
     if (state.activeTab === "packing") renderPackingTab();
+    if (state.activeTab === "expense") renderExpenseTab();
   });
 });
 
@@ -129,15 +139,16 @@ document.getElementById("newTripBtn").addEventListener("click", () => {
     { name: "name", label: "行程名稱", type: "text", required: true, placeholder: "例：日本關西家族旅行" },
     { name: "startDate", label: "出發日期", type: "date", required: true },
     { name: "endDate", label: "回程日期", type: "date", required: true },
+    { name: "currency", label: "幣別（顯示用）", type: "text", value: "NT$", placeholder: "例：NT$、JPY、USD" },
   ], (values) => {
-    const trip = {
+    const trip = normalizeTrip({
       id: uid(),
       name: values.name,
       startDate: values.startDate,
       endDate: values.endDate,
       days: dateRange(values.startDate, values.endDate),
-      packing: [],
-    };
+      currency: values.currency,
+    });
     state.trips.push(trip);
     saveTrips();
     showTrip(trip.id);
@@ -150,11 +161,13 @@ document.getElementById("editTripBtn").addEventListener("click", () => {
     { name: "name", label: "行程名稱", type: "text", required: true, value: trip.name },
     { name: "startDate", label: "出發日期", type: "date", required: true, value: trip.startDate },
     { name: "endDate", label: "回程日期", type: "date", required: true, value: trip.endDate },
+    { name: "currency", label: "幣別（顯示用）", type: "text", value: trip.currency },
   ], (values) => {
     const oldDays = trip.days;
     trip.name = values.name;
     trip.startDate = values.startDate;
     trip.endDate = values.endDate;
+    trip.currency = values.currency || trip.currency;
     const newDays = dateRange(values.startDate, values.endDate);
     newDays.forEach(d => {
       const old = oldDays.find(o => o.date === d.date);
@@ -200,7 +213,7 @@ document.getElementById("importFile").addEventListener("change", (e) => {
       const trips = Array.isArray(data) ? data : [data];
       trips.forEach(t => {
         t.id = uid(); // 避免與現有行程 id 衝突
-        state.trips.push(t);
+        state.trips.push(normalizeTrip(t));
       });
       saveTrips();
       renderTripList();
@@ -478,6 +491,228 @@ document.getElementById("resetCheckBtn").addEventListener("click", () => {
   renderPackingTab();
 });
 
+// ---------- 旅費分攤 ----------
+function renderExpenseTab() {
+  renderMemberChips();
+  renderExpenseList();
+  renderSettlement();
+}
+
+function renderMemberChips() {
+  const trip = currentTrip();
+  const memberChips = document.getElementById("memberChips");
+  memberChips.innerHTML = "";
+  if (!trip.members.length) {
+    memberChips.innerHTML = `<div class="empty-day">還沒有成員，先新增家人吧！</div>`;
+    return;
+  }
+  trip.members.forEach(m => {
+    const chip = document.createElement("span");
+    chip.className = "member-chip";
+    chip.innerHTML = `${escapeHtml(m.name)}<button class="del-member" title="移除">✕</button>`;
+    chip.querySelector(".del-member").addEventListener("click", () => deleteMember(m.id));
+    memberChips.appendChild(chip);
+  });
+}
+
+document.getElementById("addMemberBtn").addEventListener("click", () => {
+  openModal("新增成員", [
+    { name: "name", label: "姓名/稱呼", type: "text", required: true, placeholder: "例：爸爸" },
+  ], (values) => {
+    const trip = currentTrip();
+    trip.members.push({ id: uid(), name: values.name });
+    saveTrips();
+    renderExpenseTab();
+  });
+});
+
+function deleteMember(memberId) {
+  const trip = currentTrip();
+  const member = trip.members.find(m => m.id === memberId);
+  const used = trip.expenses.some(e => e.paidBy === memberId || e.splitAmong.includes(memberId));
+  if (used && !confirm(`「${member.name}」已經被用在支出紀錄中，移除後相關支出的付款人/分攤對象會一併調整，確定要移除嗎？`)) return;
+  trip.members = trip.members.filter(m => m.id !== memberId);
+  trip.expenses.forEach(e => {
+    if (e.paidBy === memberId) e.paidBy = null;
+    e.splitAmong = e.splitAmong.filter(id => id !== memberId);
+  });
+  saveTrips();
+  renderExpenseTab();
+}
+
+function formatMoney(n) {
+  return (Math.round(n * 100) / 100).toLocaleString("zh-TW");
+}
+
+function renderExpenseList() {
+  const trip = currentTrip();
+  const expenseList = document.getElementById("expenseList");
+  expenseList.innerHTML = "";
+  if (!trip.expenses.length) {
+    expenseList.innerHTML = `<div class="empty-day">還沒有支出紀錄，點下方新增吧！</div>`;
+    return;
+  }
+  trip.expenses.forEach(exp => {
+    const payer = trip.members.find(m => m.id === exp.paidBy);
+    const splitNames = exp.splitAmong.map(id => trip.members.find(m => m.id === id)?.name).filter(Boolean).join("、");
+    const card = document.createElement("div");
+    card.className = "expense-card";
+    card.innerHTML = `
+      <div class="expense-body">
+        <div class="expense-title">${escapeHtml(exp.title)}</div>
+        <div class="expense-meta">${escapeHtml(trip.currency)} ${formatMoney(exp.amount)}・${payer ? escapeHtml(payer.name) : "未指定"} 支付</div>
+        <div class="expense-split">均分：${splitNames || "無"}</div>
+      </div>
+      <div class="activity-buttons">
+        <button class="edit-btn" title="編輯">✏️</button>
+        <button class="del-btn" title="刪除">🗑️</button>
+      </div>
+    `;
+    card.querySelector(".edit-btn").addEventListener("click", () => openExpenseModal(exp));
+    card.querySelector(".del-btn").addEventListener("click", () => deleteExpense(exp.id));
+    expenseList.appendChild(card);
+  });
+}
+
+document.getElementById("addExpenseBtn").addEventListener("click", () => {
+  openExpenseModal();
+});
+
+function openExpenseModal(existing) {
+  const trip = currentTrip();
+  if (!trip.members.length) {
+    alert("請先在上方新增至少一位成員，才能記錄支出喔！");
+    return;
+  }
+  openModal(existing ? "編輯支出" : "新增支出", [
+    { name: "title", label: "項目名稱", type: "text", required: true, placeholder: "例：晚餐、飯店住宿", value: existing?.title || "" },
+    { name: "amount", label: `金額 (${trip.currency})`, type: "number", required: true, step: "0.01", min: "0", value: existing?.amount ?? "" },
+    {
+      name: "paidBy", label: "付款人", type: "select", required: true,
+      options: trip.members.map(m => ({ value: m.id, label: m.name })),
+      value: existing?.paidBy || trip.members[0].id,
+    },
+    {
+      name: "splitAmong", label: "平分對象", type: "checkboxGroup",
+      options: trip.members.map(m => ({ value: m.id, label: m.name })),
+      values: existing?.splitAmong || trip.members.map(m => m.id),
+    },
+  ], (values) => {
+    const amount = parseFloat(values.amount);
+    if (!amount || amount <= 0) { alert("請輸入有效的金額"); return; }
+    if (!values.splitAmong.length) { alert("請至少選擇一位平分對象"); return; }
+    if (existing) {
+      existing.title = values.title;
+      existing.amount = amount;
+      existing.paidBy = values.paidBy;
+      existing.splitAmong = values.splitAmong;
+    } else {
+      trip.expenses.push({ id: uid(), title: values.title, amount, paidBy: values.paidBy, splitAmong: values.splitAmong });
+    }
+    saveTrips();
+    renderExpenseTab();
+  });
+}
+
+function deleteExpense(expId) {
+  const trip = currentTrip();
+  if (!confirm("確定要刪除這筆支出嗎？")) return;
+  trip.expenses = trip.expenses.filter(e => e.id !== expId);
+  saveTrips();
+  renderExpenseTab();
+}
+
+function computeBalances(trip) {
+  const paid = {};
+  const share = {};
+  trip.members.forEach(m => { paid[m.id] = 0; share[m.id] = 0; });
+  trip.expenses.forEach(exp => {
+    if (exp.paidBy && paid[exp.paidBy] !== undefined) paid[exp.paidBy] += exp.amount;
+    const among = exp.splitAmong.filter(id => share[id] !== undefined);
+    if (among.length) {
+      const portion = exp.amount / among.length;
+      among.forEach(id => { share[id] += portion; });
+    }
+  });
+  return trip.members.map(m => ({
+    id: m.id,
+    name: m.name,
+    paid: paid[m.id] || 0,
+    share: share[m.id] || 0,
+    balance: (paid[m.id] || 0) - (share[m.id] || 0),
+  }));
+}
+
+function settleUp(balances) {
+  const creditors = balances.filter(b => b.balance > 0.5).map(b => ({ ...b })).sort((a, b) => b.balance - a.balance);
+  const debtors = balances.filter(b => b.balance < -0.5).map(b => ({ ...b })).sort((a, b) => a.balance - b.balance);
+  const transactions = [];
+  let i = 0, j = 0;
+  while (i < debtors.length && j < creditors.length) {
+    const debtor = debtors[i];
+    const creditor = creditors[j];
+    const amount = Math.min(-debtor.balance, creditor.balance);
+    transactions.push({ from: debtor.name, to: creditor.name, amount });
+    debtor.balance += amount;
+    creditor.balance -= amount;
+    if (Math.abs(debtor.balance) < 0.5) i++;
+    if (Math.abs(creditor.balance) < 0.5) j++;
+  }
+  return transactions;
+}
+
+function renderSettlement() {
+  const trip = currentTrip();
+  const summaryEl = document.getElementById("settlementSummary");
+  summaryEl.innerHTML = "";
+  if (!trip.members.length) {
+    summaryEl.innerHTML = `<div class="empty-day">新增成員與支出後，這裡會自動計算每個人該收/該付多少錢。</div>`;
+    return;
+  }
+  const balances = computeBalances(trip);
+  const total = trip.expenses.reduce((s, e) => s + e.amount, 0);
+
+  const totalRow = document.createElement("div");
+  totalRow.className = "settlement-total";
+  totalRow.textContent = `總花費：${trip.currency} ${formatMoney(total)}`;
+  summaryEl.appendChild(totalRow);
+
+  const table = document.createElement("div");
+  table.className = "balance-table";
+  balances.forEach(b => {
+    const row = document.createElement("div");
+    row.className = "balance-row";
+    const sign = b.balance > 0.5 ? "應收" : b.balance < -0.5 ? "應付" : "已結清";
+    const cls = b.balance > 0.5 ? "positive" : b.balance < -0.5 ? "negative" : "neutral";
+    row.innerHTML = `
+      <span class="balance-name">${escapeHtml(b.name)}</span>
+      <span class="balance-detail">已付 ${trip.currency} ${formatMoney(b.paid)}・應分擔 ${trip.currency} ${formatMoney(b.share)}</span>
+      <span class="balance-amount ${cls}">${sign} ${trip.currency} ${formatMoney(Math.abs(b.balance))}</span>
+    `;
+    table.appendChild(row);
+  });
+  summaryEl.appendChild(table);
+
+  const transactions = settleUp(balances);
+  const settleEl = document.createElement("div");
+  settleEl.className = "settle-transactions";
+  if (!transactions.length) {
+    settleEl.innerHTML = `<div class="empty-day">🎉 大家的花費都打平了，不需要互相轉帳！</div>`;
+  } else {
+    const heading = document.createElement("div");
+    heading.className = "settle-heading";
+    heading.textContent = "建議轉帳";
+    settleEl.appendChild(heading);
+    transactions.forEach(t => {
+      const row = document.createElement("div");
+      row.className = "settle-row";
+      row.innerHTML = `<span>${escapeHtml(t.from)}</span> → <span>${escapeHtml(t.to)}</span> <strong>${trip.currency} ${formatMoney(t.amount)}</strong>`;
+      settleEl.appendChild(row);
+    });
+  }
+  summaryEl.appendChild(settleEl);
+}
+
 // ---------- 共用 Modal ----------
 const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
@@ -495,12 +730,41 @@ function openModal(title, fields, onSubmit) {
     label.textContent = f.label;
     label.setAttribute("for", `f_${f.name}`);
     wrap.appendChild(label);
+    if (f.type === "checkboxGroup") {
+      const group = document.createElement("div");
+      group.className = "checkbox-group";
+      const checkedValues = f.values || [];
+      f.options.forEach(opt => {
+        const optLabel = document.createElement("label");
+        const cb = document.createElement("input");
+        cb.type = "checkbox";
+        cb.dataset.group = f.name;
+        cb.dataset.value = opt.value;
+        cb.checked = checkedValues.includes(opt.value);
+        optLabel.appendChild(cb);
+        optLabel.append(opt.label);
+        group.appendChild(optLabel);
+      });
+      wrap.appendChild(group);
+      modalForm.appendChild(wrap);
+      return;
+    }
     let input;
     if (f.type === "textarea") {
       input = document.createElement("textarea");
+    } else if (f.type === "select") {
+      input = document.createElement("select");
+      f.options.forEach(opt => {
+        const optionEl = document.createElement("option");
+        optionEl.value = opt.value;
+        optionEl.textContent = opt.label;
+        input.appendChild(optionEl);
+      });
     } else {
       input = document.createElement("input");
       input.type = f.type || "text";
+      if (f.step !== undefined) input.step = f.step;
+      if (f.min !== undefined) input.min = f.min;
     }
     input.id = `f_${f.name}`;
     input.name = f.name;
@@ -516,7 +780,11 @@ function openModal(title, fields, onSubmit) {
     e.preventDefault();
     const values = {};
     fields.forEach(f => {
-      values[f.name] = document.getElementById(`f_${f.name}`).value.trim();
+      if (f.type === "checkboxGroup") {
+        values[f.name] = Array.from(modalForm.querySelectorAll(`input[data-group="${f.name}"]:checked`)).map(cb => cb.dataset.value);
+      } else {
+        values[f.name] = document.getElementById(`f_${f.name}`).value.trim();
+      }
     });
     closeModal();
     onSubmit(values);
