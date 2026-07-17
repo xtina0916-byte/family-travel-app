@@ -749,7 +749,10 @@ function renderPollTab() {
       card.innerHTML = `
         <div class="poll-card-header">
           <div class="poll-question">${escapeHtml(poll.question)}</div>
-          <button class="del-poll" title="刪除投票">🗑️</button>
+          <div class="poll-card-actions">
+            <button class="edit-poll" title="編輯投票">✏️</button>
+            <button class="del-poll" title="刪除投票">🗑️</button>
+          </div>
         </div>
         <div class="poll-results"></div>
         <div class="poll-total">共 ${total} 票</div>
@@ -789,6 +792,10 @@ function renderPollTab() {
       form.appendChild(actions);
       card.appendChild(form);
 
+      card.querySelector(".edit-poll").addEventListener("click", () => {
+        openPollModal(poll);
+      });
+
       card.querySelector(".del-poll").addEventListener("click", () => {
         if (!confirm("確定要刪除這個投票嗎？")) return;
         trip.polls = trip.polls.filter(p => p.id !== poll.id);
@@ -801,24 +808,42 @@ function renderPollTab() {
 }
 
 document.getElementById("addPollBtn").addEventListener("click", () => {
-  openModal("發起新投票", [
-    { name: "question", label: "問題", type: "text", required: true, placeholder: "例：晚餐想吃什麼？" },
-    { name: "options", label: "選項（每行一個，至少 2 個）", type: "textarea", required: true, placeholder: "火鍋\n燒肉\n拉麵" },
+  openPollModal();
+});
+
+function openPollModal(existing) {
+  openModal(existing ? "編輯投票" : "發起新投票", [
+    { name: "question", label: "問題", type: "text", required: true, placeholder: "例：晚餐想吃什麼？", value: existing?.question || "" },
+    { name: "options", label: "選項（每行一個，至少 2 個）", type: "textarea", required: true, placeholder: "火鍋\n燒肉\n拉麵", value: existing ? existing.options.map(o => o.text).join("\n") : "" },
   ], (values) => {
     const optionTexts = values.options.split("\n").map(s => s.trim()).filter(Boolean);
     if (optionTexts.length < 2) { alert("請至少輸入 2 個選項"); return; }
     const trip = currentTrip();
-    trip.polls.push({
-      id: uid(),
-      question: values.question,
-      options: optionTexts.map(text => ({ id: uid(), text })),
-      votes: {},
-      createdAt: Date.now(),
-    });
+    if (existing) {
+      const oldOptions = existing.options;
+      const newOptions = optionTexts.map(text => {
+        const matched = oldOptions.find(o => o.text === text);
+        return matched ? matched : { id: uid(), text };
+      });
+      const validIds = new Set(newOptions.map(o => o.id));
+      Object.keys(existing.votes).forEach(voterId => {
+        if (!validIds.has(existing.votes[voterId])) delete existing.votes[voterId];
+      });
+      existing.question = values.question;
+      existing.options = newOptions;
+    } else {
+      trip.polls.push({
+        id: uid(),
+        question: values.question,
+        options: optionTexts.map(text => ({ id: uid(), text })),
+        votes: {},
+        createdAt: Date.now(),
+      });
+    }
     saveTrips();
     renderPollTab();
   });
-});
+}
 
 function castVote(tripId, pollId, optionId) {
   const voterId = currentVoterId();

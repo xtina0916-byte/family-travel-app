@@ -435,6 +435,7 @@ body {
   margin-bottom: 10px;
 }
 .poll-question { font-weight: 700; font-size: 15px; }
+.poll-card-actions { display: flex; gap: 6px; flex-shrink: 0; }
 .poll-card-header button {
   border: none;
   background: transparent;
