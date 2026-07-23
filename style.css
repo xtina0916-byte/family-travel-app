@@ -485,6 +485,35 @@ body {
   cursor: pointer;
 }
 
+/* ---------- 連結分享 ---------- */
+.link-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.link-card {
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.link-body { flex: 1; min-width: 0; }
+.link-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--accent);
+  text-decoration: none;
+  word-break: break-word;
+}
+.link-url {
+  display: block;
+  font-size: 12px;
+  color: var(--muted);
+  text-decoration: none;
+  margin-top: 2px;
+  word-break: break-all;
+}
+.link-note { font-size: 13px; color: var(--muted); margin-top: 6px; white-space: pre-wrap; }
+
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #201a14;

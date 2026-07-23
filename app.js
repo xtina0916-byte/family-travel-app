@@ -15,6 +15,7 @@ function normalizeTrip(trip) {
   trip.expenses = trip.expenses || [];
   trip.currency = trip.currency || "NT$";
   trip.polls = trip.polls || [];
+  trip.links = trip.links || [];
   return trip;
 }
 function saveTrips() {
@@ -112,10 +113,12 @@ document.querySelectorAll(".tab").forEach(btn => {
     document.getElementById("packingTab").classList.toggle("hidden", state.activeTab !== "packing");
     document.getElementById("expenseTab").classList.toggle("hidden", state.activeTab !== "expense");
     document.getElementById("pollTab").classList.toggle("hidden", state.activeTab !== "poll");
+    document.getElementById("linksTab").classList.toggle("hidden", state.activeTab !== "links");
     if (state.activeTab === "map") renderMapTab();
     if (state.activeTab === "packing") renderPackingTab();
     if (state.activeTab === "expense") renderExpenseTab();
     if (state.activeTab === "poll") renderPollTab();
+    if (state.activeTab === "links") renderLinksTab();
   });
 });
 
@@ -877,6 +880,69 @@ function castVote(tripId, pollId, optionId) {
   });
 }
 
+// ---------- 連結分享 ----------
+function normalizeUrl(url) {
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
+
+function renderLinksTab() {
+  const trip = currentTrip();
+  const linkList = document.getElementById("linkList");
+  linkList.innerHTML = "";
+  if (!trip.links.length) {
+    linkList.innerHTML = `<div class="empty-day">還沒有分享任何連結，看到不錯的飯店/餐廳/景點就貼上來吧！</div>`;
+    return;
+  }
+  trip.links
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .forEach(link => {
+      const card = document.createElement("div");
+      card.className = "link-card";
+      const href = normalizeUrl(link.url);
+      card.innerHTML = `
+        <div class="link-body">
+          <a class="link-title" href="${href}" target="_blank" rel="noopener">${escapeHtml(link.title || link.url)}</a>
+          ${link.title ? `<a class="link-url" href="${href}" target="_blank" rel="noopener">${escapeHtml(link.url)}</a>` : ""}
+          ${link.note ? `<div class="link-note">${escapeHtml(link.note)}</div>` : ""}
+        </div>
+        <div class="activity-buttons">
+          <button class="edit-btn" title="編輯">✏️</button>
+          <button class="del-btn" title="刪除">🗑️</button>
+        </div>
+      `;
+      card.querySelector(".edit-btn").addEventListener("click", () => openLinkModal(link));
+      card.querySelector(".del-btn").addEventListener("click", () => {
+        if (!confirm("確定要刪除這個連結嗎？")) return;
+        trip.links = trip.links.filter(l => l.id !== link.id);
+        saveTrips();
+        renderLinksTab();
+      });
+      linkList.appendChild(card);
+    });
+}
+
+document.getElementById("addLinkBtn").addEventListener("click", () => {
+  openLinkModal();
+});
+
+function openLinkModal(existing) {
+  openModal(existing ? "編輯連結" : "新增連結", [
+    { name: "url", label: "連結網址", type: "text", required: true, placeholder: "https://...", value: existing?.url || "" },
+    { name: "title", label: "標題（選填）", type: "text", placeholder: "例：這間飯店評價不錯", value: existing?.title || "" },
+    { name: "note", label: "備註（選填）", type: "textarea", value: existing?.note || "" },
+  ], (values) => {
+    const trip = currentTrip();
+    if (existing) {
+      Object.assign(existing, values);
+    } else {
+      trip.links.push({ id: uid(), ...values, createdAt: Date.now() });
+    }
+    saveTrips();
+    renderLinksTab();
+  });
+}
+
 // ---------- 共用 Modal ----------
 const modalOverlay = document.getElementById("modalOverlay");
 const modalTitle = document.getElementById("modalTitle");
@@ -997,6 +1063,7 @@ function refreshCurrentView() {
   if (state.activeTab === "packing") renderPackingTab();
   if (state.activeTab === "expense") renderExpenseTab();
   if (state.activeTab === "poll") renderPollTab();
+  if (state.activeTab === "links") renderLinksTab();
 }
 
 function pushTripsToFirestore() {
